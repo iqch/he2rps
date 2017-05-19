@@ -50,7 +50,7 @@ extern "C" {
 // SUBD2
 RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtToken tk[], RtPointer vl[])
 {
-	cerr << "IN SUBDVD" << endl;
+	cerr << "<<SUBDV" << endl;
 	bool init = false;
 
 	HAPI_Session session;
@@ -81,7 +81,12 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 
 		string asset_name = get_string(asset_name_sh);
 
-		if (HAPI_CreateNode(&session, -1, asset_name.c_str(), NULL, false, &node_id) != HAPI_RESULT_SUCCESS) break;
+		HAPI_Result res = HAPI_CreateNode(&session, -1, asset_name.c_str(), NULL, false, &node_id);
+
+		if (res != HAPI_RESULT_SUCCESS)
+		{
+			break;
+		}
 
 
 		init = true;
@@ -201,9 +206,9 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 	};
 
 	// ...ASSIGN FRAME
-	bool motion = (shutter[0] == shutter[1]);
+	bool motion = (shutter[0] != shutter[1]);
 
-	if (motion) RiMotionBegin(2, shutter[0], shutter[1]);
+	if (motion) RiMotionBegin(2, fi.shutter[0], fi.shutter[1]);
 
 	// COOK
 	cook_options.splitGeosByGroup = false;
@@ -211,7 +216,7 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 
 	int last = (motion ? 1 : 0);
 
-	for (int T = 0;T < last;T++)
+	for (int T = 0;T <= last;T++)
 	{
 		HAPI_SetTime(&session, shutter[T]);
 
@@ -278,6 +283,8 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 
 	// CLEANUP
 	HAPI_Cleanup(&session);
+
+	cerr << "SUBDV>>" << endl;
 };
 
 // BOUND
@@ -340,197 +347,194 @@ RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBoun
 	if (!init)
 	{
 		cout << "NOT INIT!" << endl;
+		HAPI_Cleanup(&session);
+		return;
 	};
 
-	while (init)
+
+	// SETUP PARAMS
+
+	vector<string> TK;
+	vector<int> VLI;
+
+	for (int i = 0;i < n;i++)
 	{
-		// SETUP PARAMS
+		if (strstr(tk[i], "hda")) continue;
 
-		vector<string> TK;
-		vector<int> VLI;
+		string clz = tk[i];
 
-		for (int i = 0;i < n;i++)
+		TK.push_back(clz);
+		VLI.push_back(i);
+	};
+
+	RixInterface* rixi = ctx->GetRixInterface(k_RixRenderState);
+
+	RixRenderState* rxstate = reinterpret_cast<RixRenderState*>(rixi);
+	RixRenderState::FrameInfo fi;
+	rxstate->GetFrameInfo(&fi);
+
+	int frame = fi.frame;
+
+	float shutter[2] = { frame+fi.shutter[0],frame+fi.shutter[1] };
+
+	cout << "SHUTTER " << shutter[0] << ":" << shutter[1] << endl;
+
+	HAPI_NodeInfo node_info;
+	HAPI_GetNodeInfo(&session, node_id, &node_info);
+
+	for (int i = 0;i < node_info.parmCount;i++)
+	{
+		HAPI_ParmInfo pi;
+		HAPI_GetParameters(&session, node_id, &pi, i, 1);
+
+		string name = get_string(pi.nameSH);
+
+		bool found = false;
+		int j;
+		for (j = 0; j < TK.size(); j++)
 		{
-			if (strstr(tk[i], "hda")) continue;
+			vector<string> CLZ;
 
-			string clz = tk[i];
+			string _TK(TK[j].c_str());
 
-			TK.push_back(clz);
-			VLI.push_back(i);
+			char* pch = strtok((char*)_TK.c_str(), " ");
+
+			while (pch != NULL)
+			{
+				CLZ.push_back(string(pch));
+				pch = strtok(NULL, " ");
+			};
+
+			if (CLZ.size() != 2) continue;
+
+			found = CLZ[1] == name;
+
+			if (found) break;
 		};
 
-		RixInterface* rixi = ctx->GetRixInterface(k_RixRenderState);
+		if (!found) continue;
 
-		RixRenderState* rxstate = reinterpret_cast<RixRenderState*>(rixi);
-		RixRenderState::FrameInfo fi;
-		rxstate->GetFrameInfo(&fi);
-
-		int frame = fi.frame;
-
-		float shutter[2] = { frame+fi.shutter[0],frame+fi.shutter[1] };
-
-		cout << "SHUTTER " << shutter[0] << ":" << shutter[1] << endl;
-
-		HAPI_NodeInfo node_info;
-		HAPI_GetNodeInfo(&session, node_id, &node_info);
-
-		for (int i = 0;i < node_info.parmCount;i++)
+		if (pi.size != 1)
 		{
-			HAPI_ParmInfo pi;
-			HAPI_GetParameters(&session, node_id, &pi, i, 1);
-
-			string name = get_string(pi.nameSH);
-
-			bool found = false;
-			int j;
-			for (j = 0; j < TK.size(); j++)
-			{
-				vector<string> CLZ;
-
-				string _TK(TK[j].c_str());
-
-				char* pch = strtok((char*)_TK.c_str(), " ");
-
-				while (pch != NULL)
-				{
-					CLZ.push_back(string(pch));
-					pch = strtok(NULL, " ");
-				};
-
-				if (CLZ.size() != 2) continue;
-
-				found = CLZ[1] == name;
-
-				if (found) break;
-			};
-
-			if (!found) continue;
-
-			if (pi.size != 1)
-			{
-				cout << "SKIP LARGE" << endl;
-			};
-
-			switch (pi.type)
-			{
-			case HAPI_PARMTYPE_INT:
-			case HAPI_PARMTYPE_TOGGLE:
-			{
-				int VL = *(RtInt*)vl[VLI[j]];
-				HAPI_SetParmIntValue(&session, node_id, name.c_str(), 0, VL);
-			}
-			break;
-
-			case HAPI_PARMTYPE_FLOAT:
-			{
-				float VL = *(RtFloat*)vl[VLI[j]];
-				HAPI_SetParmFloatValue(&session, node_id, name.c_str(), 0, VL);
-			}
-			//case HAPI_PARMTYPE_COLOR:
-			break;
-
-			case HAPI_PARMTYPE_STRING:
-			case HAPI_PARMTYPE_PATH_FILE:
-			case HAPI_PARMTYPE_PATH_FILE_GEO:
-			case HAPI_PARMTYPE_PATH_FILE_IMAGE:
-			{
-				string VL = *(RtString*)vl[VLI[j]];
-				HAPI_SetParmStringValue(&session, node_id, VL.c_str(), pi.id, 0);
-			}
-			break;
-			default:
-				break;
-			};
-
+			cout << "SKIP LARGE" << endl;
 		};
 
-		// ASSIGN BOUND 
-		bool assigned_bound = false;
-		for (int i = 0;i < node_info.parmCount;i++)
+		switch (pi.type)
 		{
-			HAPI_ParmInfo pi;
-			HAPI_GetParameters(&session, node_id, &pi, i, 1);
-
-			string name = get_string(pi.nameSH);
-
-			if (name != "bound") continue;
-
-			if (pi.type != HAPI_PARMTYPE_TOGGLE)
-			{
-				cout << "BOUND PARAM SHOULD BE A TOGGLE!" << endl;
-				break;
-			};
-
-			HAPI_SetParmIntValue(&session, node_id, "bound", 0, 1);
-			assigned_bound = true;
-		};
-
-		if (!assigned_bound)
+		case HAPI_PARMTYPE_INT:
+		case HAPI_PARMTYPE_TOGGLE:
 		{
-			cout << "LACKS BOUND-QUERYING TOGGLE!" << endl;
+			int VL = *(RtInt*)vl[VLI[j]];
+			HAPI_SetParmIntValue(&session, node_id, name.c_str(), 0, VL);
+		}
+		break;
+
+		case HAPI_PARMTYPE_FLOAT:
+		{
+			float VL = *(RtFloat*)vl[VLI[j]];
+			HAPI_SetParmFloatValue(&session, node_id, name.c_str(), 0, VL);
+		}
+		//case HAPI_PARMTYPE_COLOR:
+		break;
+
+		case HAPI_PARMTYPE_STRING:
+		case HAPI_PARMTYPE_PATH_FILE:
+		case HAPI_PARMTYPE_PATH_FILE_GEO:
+		case HAPI_PARMTYPE_PATH_FILE_IMAGE:
+		{
+			string VL = *(RtString*)vl[VLI[j]];
+			HAPI_SetParmStringValue(&session, node_id, VL.c_str(), pi.id, 0);
+		}
+		break;
+		default:
 			break;
 		};
 
-		int shi = 0;
+	};
+
+	// ASSIGN BOUND 
+	bool assigned_bound = false;
+	for (int i = 0;i < node_info.parmCount;i++)
+	{
+		HAPI_ParmInfo pi;
+		HAPI_GetParameters(&session, node_id, &pi, i, 1);
+
+		string name = get_string(pi.nameSH);
+
+		if (name != "bound") continue;
+
+		if (pi.type != HAPI_PARMTYPE_TOGGLE)
+		{
+			cout << "BOUND PARAM SHOULD BE A TOGGLE!" << endl;
+			break;
+		};
+
+		HAPI_SetParmIntValue(&session, node_id, "bound", 0, 1);
+		assigned_bound = true;
+	};
+
+	if (!assigned_bound)
+	{
+		cout << "LACKS BOUND-QUERYING TOGGLE!" << endl;
+		HAPI_Cleanup(&session);
+		return;
+	};
 
 #define BIG 1.0e20
 
-		result[0][0] =  BIG; result[0][1] = -BIG; result[0][2] = BIG;
-		result[0][3] = -BIG; result[0][4] = BIG; result[0][5] = -BIG;
+	result[0][0] = BIG; result[0][1] = -BIG; result[0][2] = BIG;
+	result[0][3] = -BIG; result[0][4] = BIG; result[0][5] = -BIG;
 
-		result[1][0] = BIG; result[1][1] = -BIG; result[1][2] = BIG;
-		result[1][3] = -BIG; result[1][4] = BIG; result[1][5] = -BIG;
+	result[1][0] = BIG; result[1][1] = -BIG; result[1][2] = BIG;
+	result[1][3] = -BIG; result[1][4] = BIG; result[1][5] = -BIG;
 
-		do
+	bool motion = (shutter[0] != shutter[1]);
+
+	int last = (motion ? 1 : 0);
+
+	for(int T = 0; T<=last; T++)
+	{
+		HAPI_SetTime(&session, shutter[T]);
+
+		// COOK
+		HAPI_CookNode(&session, node_id, &cook_options);
+
+		// QUERY
+		HAPI_GeoInfo geo_info;
+		HAPI_GetGeoInfo(&session, node_id, &geo_info);
+
+		// EMIT
+		for (int i = 0;i < geo_info.partCount;i++)
 		{
-			HAPI_SetTime(&session, shutter[shi]);
+			HAPI_PartInfo part_info;
+			HAPI_GetPartInfo(&session, node_id, i, &part_info);
 
-			// COOK
-			HAPI_CookNode(&session, node_id, &cook_options);
+			if (part_info.type != HAPI_PARTTYPE_MESH) continue;
 
-			// QUERY
-			HAPI_GeoInfo geo_info;
-			HAPI_GetGeoInfo(&session, node_id, &geo_info);
+			// P
+			HAPI_AttributeInfo attr_info_p;
+			HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
+			vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
+			HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
 
-			// EMIT
-			for (int i = 0;i < geo_info.partCount;i++)
+			for (int j=0;j < p_array.size() / 3;j++)
 			{
-				HAPI_PartInfo part_info;
-				HAPI_GetPartInfo(&session, node_id, i, &part_info);
-
-				if (part_info.type != HAPI_PARTTYPE_MESH) continue;
-
-				// P
-				HAPI_AttributeInfo attr_info_p;
-				HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
-				vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
-				HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
-
-				for (int j=0;j < p_array.size() / 3;j++)
-				{
-					if (result[shi][0] > p_array[j * 3]) result[shi][0] = p_array[j * 3];
-					if (result[shi][1] < p_array[j * 3+1]) result[shi][1] = p_array[j * 3+1];
-					if (result[shi][2] > p_array[j * 3+2]) result[shi][2] = p_array[j * 3+2];
-
-					if (result[shi][3] < p_array[j * 3]) result[shi][3] = p_array[j * 3];
-					if (result[shi][4] > p_array[j * 3 + 1]) result[shi][4] = p_array[j * 3 + 1];
-					if (result[shi][5] < p_array[j * 3 + 2]) result[shi][5] = p_array[j * 3 + 2];
-
-					if (shutter[0] == shutter[1])
-					{
-						result[1][0] = result[0][0];result[1][1] = result[0][1];result[1][2] = result[0][2];
-						result[1][3] = result[0][3];result[1][4] = result[0][4];result[1][5] = result[0][5];
-					};
-				};
-
+				if (result[T][0] > p_array[j * 3]) result[T][0] = p_array[j * 3]; // +
+				if (result[T][1] < p_array[j * 3]) result[T][1] = p_array[j * 3];
+				if (result[T][2] > p_array[j * 3+1]) result[T][2] = p_array[j * 3+1];
+				if (result[T][3] < p_array[j * 3+1]) result[T][3] = p_array[j * 3+1];
+				if (result[T][4] > p_array[j * 3 + 2]) result[T][4] = p_array[j * 3 + 2];
+				if (result[T][5] < p_array[j * 3 + 2]) result[T][5] = p_array[j * 3 + 2];
 			};
 
-			shi++;
+		};
 
-		} 
-		while((shi==1)&&(shutter[0]!=shutter[1]));
+		if (!motion)
+		{
+			result[1][0] = result[0][0];result[1][1] = result[0][1];result[1][2] = result[0][2];
+			result[1][3] = result[0][3];result[1][4] = result[0][4];result[1][5] = result[0][5];
+		};
 
-		break;
 	};
 
 	// CLEANUP
