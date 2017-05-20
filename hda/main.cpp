@@ -50,7 +50,7 @@ extern "C" {
 // SUBD2
 RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtToken tk[], RtPointer vl[])
 {
-	cerr << "<<SUBDV" << endl;
+	cout << "<<SUBDV" << endl;
 	bool init = false;
 
 	HAPI_Session session;
@@ -284,13 +284,13 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 	// CLEANUP
 	HAPI_Cleanup(&session);
 
-	cerr << "SUBDV>>" << endl;
+	cout << "SUBDV>>" << endl;
 };
 
 // BOUND
 RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBound result[2])
 {
-	cerr << "IN BOUND!!! " << endl;
+	cout << "<<BOUND" << endl;
 
 	//result[0][0] = -10.0f; result[0][1] = -10.0f; result[0][2] = -10.0f;
 	//result[0][3] = 10.0f; result[0][4] = 10.0f; result[0][5] = 10.0f;
@@ -539,6 +539,8 @@ RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBoun
 
 	// CLEANUP
 	HAPI_Cleanup(&session);
+
+	cout << "BOUND>>" << endl;
 
 };
 
