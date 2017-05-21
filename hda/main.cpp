@@ -216,70 +216,90 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 
 	int last = (motion ? 1 : 0);
 
-	for (int T = 0;T <= last;T++)
+
+	if (node_info.type == HAPI_NodeType::HAPI_NODETYPE_OBJ)
 	{
-		HAPI_SetTime(&session, shutter[T]);
+		int child_count;
+		HAPI_ComposeChildNodeList(&session, node_id, HAPI_NODETYPE_SOP, HAPI_NODEFLAGS_DISPLAY, false, &child_count);
 
-		cout << "TIME : " << shutter[T] << endl;
-
-		HAPI_CookNode(&session, node_id, &cook_options);
-
-		// QUERY
-		HAPI_GeoInfo geo_info;
-		HAPI_GetGeoInfo(&session, node_id, &geo_info);
-
-		// EMIT
-		for (int i = 0;i < min(1,geo_info.partCount);i++)
+		if (child_count != 1)
 		{
-			HAPI_PartInfo part_info;
-			HAPI_GetPartInfo(&session, node_id, i, &part_info);
+			HAPI_Cleanup(&session);
+			return;
+		}
 
-			if (part_info.type != HAPI_PARTTYPE_CURVE) continue;
+		vector< HAPI_NodeId > child_node_ids(child_count);
+		HAPI_GetComposedChildNodeList(&session, node_id, child_node_ids.data(), child_count);
 
-			HAPI_CurveInfo curve_info;
-			HAPI_GetCurveInfo(&session, node_id, i, &curve_info);
-			if (curve_info.curveType == HAPI_CURVETYPE_LINEAR) cout << "curve mesh type = Linear" << endl;
-			else if (curve_info.curveType == HAPI_CURVETYPE_BEZIER) cout << "curve mesh type = Bezier" << endl;
-			else if (curve_info.curveType == HAPI_CURVETYPE_NURBS) cout << "curve mesh type = Nurbs" << endl;
-			else cout << "curve mesh type = Unknown" << endl;
+		node_id = child_node_ids[0];
 
-			cout << "curve count: " << curve_info.curveCount << endl;
+		for (int T = 0;T <= last;T++)
+		{
+			HAPI_SetTime(&session, shutter[T]);
 
-			int* nvertices = new int[curve_info.curveCount];
+			cout << "TIME : " << shutter[T] << endl;
 
-			HAPI_GetCurveCounts(&session, node_id, part_info.id, nvertices, 0, curve_info.curveCount);
+			HAPI_CookNode(&session, node_id, &cook_options);
 
-			int pcnt = 0;
+			// QUERY
+			HAPI_GeoInfo geo_info;
+			HAPI_GetGeoInfo(&session, node_id, &geo_info);
 
-			for (int j = 0;j < curve_info.curveCount;j++) pcnt += nvertices[j];
+			// EMIT
+			for (int i = 0;i < min(1, geo_info.partCount);i++)
+			{
+				HAPI_PartInfo part_info;
+				HAPI_GetPartInfo(&session, node_id, i, &part_info);
 
-			// P
-			HAPI_AttributeInfo attr_info_p;
-			HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
-			vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
-			HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
+				if (part_info.type != HAPI_PARTTYPE_CURVE) continue;
 
-			float* P = p_array.data();
+				HAPI_CurveInfo curve_info;
+				HAPI_GetCurveInfo(&session, node_id, i, &curve_info);
+				if (curve_info.curveType == HAPI_CURVETYPE_LINEAR) cout << "curve mesh type = Linear" << endl;
+				else if (curve_info.curveType == HAPI_CURVETYPE_BEZIER) cout << "curve mesh type = Bezier" << endl;
+				else if (curve_info.curveType == HAPI_CURVETYPE_NURBS) cout << "curve mesh type = Nurbs" << endl;
+				else cout << "curve mesh type = Unknown" << endl;
 
-			// width
-			HAPI_AttributeInfo attr_info_w;
-			HAPI_GetAttributeInfo(&session, node_id, part_info.id, "width", HAPI_ATTROWNER_POINT, &attr_info_w);
-			vector<float> w_array(attr_info_w.count);
-			HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "width", &attr_info_w, 0, &w_array.front(), 0, attr_info_w.count);
+				cout << "curve count: " << curve_info.curveCount << endl;
 
-			float* width = w_array.data();
+				int* nvertices = new int[curve_info.curveCount];
 
-			RtToken nms[2] = { "vertex point P","vertex float width" };
-			RtPointer vals[2] = { P, width };
+				HAPI_GetCurveCounts(&session, node_id, part_info.id, nvertices, 0, curve_info.curveCount);
 
-			RiCurvesV("cubic", curve_info.curveCount, nvertices, "nonperiodic", 2, nms, vals);
+				int pcnt = 0;
 
-			delete[] nvertices;;
+				for (int j = 0;j < curve_info.curveCount;j++) pcnt += nvertices[j];
+
+				// P
+				HAPI_AttributeInfo attr_info_p;
+				HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
+				vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
+				HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
+
+				float* P = p_array.data();
+
+				// width
+				HAPI_AttributeInfo attr_info_w;
+				HAPI_GetAttributeInfo(&session, node_id, part_info.id, "width", HAPI_ATTROWNER_POINT, &attr_info_w);
+				vector<float> w_array(attr_info_w.count);
+				HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "width", &attr_info_w, 0, &w_array.front(), 0, attr_info_w.count);
+
+				float* width = w_array.data();
+
+				RtToken nms[2] = { "vertex point P","vertex float width" };
+				RtPointer vals[2] = { P, width };
+
+				RiCurvesV("cubic", curve_info.curveCount, nvertices, "nonperiodic", 2, nms, vals);
+
+				delete[] nvertices;;
+			};
+
 		};
 
-	};
+		if (motion) RiMotionEnd();
 
-	if (motion) RiMotionEnd();
+
+	}
 
 	// CLEANUP
 	HAPI_Cleanup(&session);
@@ -329,6 +349,12 @@ RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBoun
 		string asset_name = get_string(asset_name_sh);
 
 		if (HAPI_CreateNode(&session, -1, asset_name.c_str(), NULL, false, &node_id) != HAPI_RESULT_SUCCESS) break;
+
+		//int asset_id;
+		//HAPI_InstantiateAsset(NULL, asset_name.c_str(), true, &asset_id);
+
+		//HAPI_AssetInfo asset_info;
+		//HAPI_GetAssetInfo(NULL, asset_id, &asset_info);
 
 
 		init = true;
@@ -492,53 +518,84 @@ RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBoun
 
 	int last = (motion ? 1 : 0);
 
-	for(int T = 0; T<=last; T++)
+	// OBJ
+	if (node_info.type == HAPI_NodeType::HAPI_NODETYPE_OBJ)
 	{
-		HAPI_SetTime(&session, shutter[T]);
+		int child_count;
+		HAPI_ComposeChildNodeList(&session, node_id, HAPI_NODETYPE_SOP, HAPI_NODEFLAGS_DISPLAY, false, &child_count);
 
-		// COOK
-		HAPI_CookNode(&session, node_id, &cook_options);
-
-		// QUERY
-		HAPI_GeoInfo geo_info;
-		HAPI_GetGeoInfo(&session, node_id, &geo_info);
-
-		// EMIT
-		for (int i = 0;i < geo_info.partCount;i++)
+		if (child_count != 1)
 		{
-			HAPI_PartInfo part_info;
-			HAPI_GetPartInfo(&session, node_id, i, &part_info);
+			HAPI_Cleanup(&session);
+			return;
+		}
 
-			if (part_info.type != HAPI_PARTTYPE_MESH) continue;
+		vector< HAPI_NodeId > child_node_ids(child_count);
+		HAPI_GetComposedChildNodeList(&session, node_id, child_node_ids.data(), child_count);
 
-			// P
-			HAPI_AttributeInfo attr_info_p;
-			HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
-			vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
-			HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
+		node_id = child_node_ids[0];
 
-			for (int j=0;j < p_array.size() / 3;j++)
+		// SOP
+
+		for (int T = 0; T <= last; T++)
+		{
+			HAPI_SetTime(&session, shutter[T]);
+
+			// COOK
+			HAPI_CookNode(&session, node_id, &cook_options);
+
+			// QUERY
+			HAPI_GeoInfo geo_info;
+			HAPI_GetGeoInfo(&session, node_id, &geo_info);
+
+			// EMIT
+			for (int i = 0;i < geo_info.partCount;i++)
 			{
-				if (result[T][0] > p_array[j * 3]) result[T][0] = p_array[j * 3]; // +
-				if (result[T][1] < p_array[j * 3]) result[T][1] = p_array[j * 3];
-				if (result[T][2] > p_array[j * 3+1]) result[T][2] = p_array[j * 3+1];
-				if (result[T][3] < p_array[j * 3+1]) result[T][3] = p_array[j * 3+1];
-				if (result[T][4] > p_array[j * 3 + 2]) result[T][4] = p_array[j * 3 + 2];
-				if (result[T][5] < p_array[j * 3 + 2]) result[T][5] = p_array[j * 3 + 2];
+				HAPI_PartInfo part_info;
+				HAPI_GetPartInfo(&session, node_id, i, &part_info);
+
+				if (part_info.type != HAPI_PARTTYPE_MESH) continue;
+
+				// P
+				HAPI_AttributeInfo attr_info_p;
+				HAPI_GetAttributeInfo(&session, node_id, part_info.id, "P", HAPI_ATTROWNER_POINT, &attr_info_p);
+				vector<float> p_array(attr_info_p.count * attr_info_p.tupleSize);
+				HAPI_GetAttributeFloatData(&session, node_id, part_info.id, "P", &attr_info_p, 0, &p_array.front(), 0, attr_info_p.count);
+
+				for (int j = 0;j < p_array.size() / 3;j++)
+				{
+					if (result[T][0] > p_array[j * 3]) result[T][0] = p_array[j * 3]; // +
+					if (result[T][1] < p_array[j * 3]) result[T][1] = p_array[j * 3];
+					if (result[T][2] > p_array[j * 3 + 1]) result[T][2] = p_array[j * 3 + 1];
+					if (result[T][3] < p_array[j * 3 + 1]) result[T][3] = p_array[j * 3 + 1];
+					if (result[T][4] > p_array[j * 3 + 2]) result[T][4] = p_array[j * 3 + 2];
+					if (result[T][5] < p_array[j * 3 + 2]) result[T][5] = p_array[j * 3 + 2];
+				};
+
+			};
+
+			if (!motion)
+			{
+				result[1][0] = result[0][0];result[1][1] = result[0][1];result[1][2] = result[0][2];
+				result[1][3] = result[0][3];result[1][4] = result[0][4];result[1][5] = result[0][5];
 			};
 
 		};
 
-		if (!motion)
-		{
-			result[1][0] = result[0][0];result[1][1] = result[0][1];result[1][2] = result[0][2];
-			result[1][3] = result[0][3];result[1][4] = result[0][4];result[1][5] = result[0][5];
-		};
 
-	};
+	}
+
+
 
 	// CLEANUP
 	HAPI_Cleanup(&session);
+
+	cout << "[" << result[0][0] << " : " << result[0][1] << "] - [" << "[" << result[0][2] << " : " << result[0][3] << "] - [" << "[" << result[0][4] << " : " << result[0][5] << "]" << endl;
+
+	if (motion)
+	{
+		cout << "[" << result[1][0] << " : " << result[1][1] << "] - [" << "[" << result[1][2] << " : " << result[1][3] << "] - [" << "[" << result[1][4] << " : " << result[1][5] << "]" << endl;
+	}
 
 	cout << "BOUND>>" << endl;
 
