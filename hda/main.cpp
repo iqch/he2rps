@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -251,20 +252,66 @@ RtVoid DLLEXPORT Subdivide2(RtContextHandle _ctx, RtFloat detail, RtInt n, RtTok
 				HAPI_PartInfo part_info;
 				HAPI_GetPartInfo(&session, node_id, i, &part_info);
 
+				HAPI_PartId part_id = part_info.id;
+
+				// CURVES NOW
 				if (part_info.type != HAPI_PARTTYPE_CURVE) continue;
 
 				HAPI_CurveInfo curve_info;
 				HAPI_GetCurveInfo(&session, node_id, i, &curve_info);
-				if (curve_info.curveType == HAPI_CURVETYPE_LINEAR) cout << "curve mesh type = Linear" << endl;
-				else if (curve_info.curveType == HAPI_CURVETYPE_BEZIER) cout << "curve mesh type = Bezier" << endl;
-				else if (curve_info.curveType == HAPI_CURVETYPE_NURBS) cout << "curve mesh type = Nurbs" << endl;
-				else cout << "curve mesh type = Unknown" << endl;
+				//if (curve_info.curveType == HAPI_CURVETYPE_LINEAR) cout << "curve mesh type = Linear" << endl;
+				//else if (curve_info.curveType == HAPI_CURVETYPE_BEZIER) cout << "curve mesh type = Bezier" << endl;
+				//else if (curve_info.curveType == HAPI_CURVETYPE_NURBS) cout << "curve mesh type = Nurbs" << endl;
+				//else cout << "curve mesh type = Unknown" << endl;
 
-				cout << "curve count: " << curve_info.curveCount << endl;
+
+				vector<string> prim_attr_names;
+				{
+					int prm_attr_cnt = part_info.attributeCounts[HAPI_ATTROWNER_PRIM];
+					HAPI_StringHandle *prm_attrs = new HAPI_StringHandle[prm_attr_cnt];
+					HAPI_GetAttributeNames(&session, node_id, part_id, HAPI_AttributeOwner::HAPI_ATTROWNER_PRIM, prm_attrs, prm_attr_cnt);
+					for (int j = 0;j < prm_attr_cnt;j++) prim_attr_names.push_back(get_string(prm_attrs[j]));
+				};
+
+
+				vector<string> pt_attr_names;
+				{
+					int pt_attr_cnt = part_info.attributeCounts[HAPI_ATTROWNER_POINT];
+					HAPI_StringHandle *pt_attrs = new HAPI_StringHandle[pt_attr_cnt];
+					HAPI_GetAttributeNames(&session, node_id, part_id, HAPI_AttributeOwner::HAPI_ATTROWNER_POINT, pt_attrs, pt_attr_cnt);
+					for (int j = 0;j < pt_attr_cnt;j++) pt_attr_names.push_back(get_string(pt_attrs[j]));
+				};
+
+				// PARSE
+
+
+
+				//for (int j = 0;j < pt_attr_cnt;j++)
+				//{
+				//	string _name = get_string(pt_attrs[j]);
+
+				//	if(find(prim_attr_names.begin(),prim_attr_names.end(),_name) == prim_attr_names.end())
+				//	{
+				//		pt_attr_names.push_back(_name);
+				//	};
+				//}
+
+				if (i == 0)
+				{
+					cout << "PRM ATTRS : " << endl;
+					for (int j = 0;j < prim_attr_names.size();j++) cout << prim_attr_names[j] << endl;
+					cout << endl;
+
+					cout << "PT ATTRS : " << endl;
+					for (int j = 0;j < pt_attr_names.size();j++) cout << pt_attr_names[j] << endl;
+					cout << endl;
+
+					cout << "curves count: " << curve_info.curveCount << endl;
+				};
 
 				int* nvertices = new int[curve_info.curveCount];
 
-				HAPI_GetCurveCounts(&session, node_id, part_info.id, nvertices, 0, curve_info.curveCount);
+				HAPI_GetCurveCounts(&session, node_id, part_id, nvertices, 0, curve_info.curveCount);
 
 				int pcnt = 0;
 
@@ -349,13 +396,6 @@ RtVoid DLLEXPORT Bound(RtInt n, RtToken const tk[], RtPointer const vl[], RtBoun
 		string asset_name = get_string(asset_name_sh);
 
 		if (HAPI_CreateNode(&session, -1, asset_name.c_str(), NULL, false, &node_id) != HAPI_RESULT_SUCCESS) break;
-
-		//int asset_id;
-		//HAPI_InstantiateAsset(NULL, asset_name.c_str(), true, &asset_id);
-
-		//HAPI_AssetInfo asset_info;
-		//HAPI_GetAssetInfo(NULL, asset_id, &asset_info);
-
 
 		init = true;
 
